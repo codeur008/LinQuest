@@ -63,6 +63,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({
     useState<AIExplanationResponse | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
+  const [speechScore, setSpeechScore] = useState<number | null>(null);
 
   const currentEx = lesson.exercises[currentIndex];
 
@@ -75,6 +76,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({
     setRecognizedSpeech("");
     setSpeechError("");
     setIsSpeakingActive(false);
+    setSpeechScore(null);
     setAiExplanation(null);
     setShowAiModal(false);
 
@@ -93,6 +95,25 @@ export const LessonModal: React.FC<LessonModalProps> = ({
       }, 400);
     }
   }, [currentIndex, currentEx, targetLang]);
+
+  // Compute Jaccard word-level similarity between two strings (for pronunciation scoring)
+  const getSimilarityScore = (a: string, b: string): number => {
+    const normalize = (s: string) =>
+      s
+        .toLowerCase()
+        .replace(/[.,?!;:'"]/g, "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+    const wordsA = normalize(a);
+    const wordsB = normalize(b);
+    if (wordsA.length === 0 || wordsB.length === 0) return 0;
+    const setA = new Set(wordsA);
+    const setB = new Set(wordsB);
+    const intersection = new Set([...setA].filter((x) => setB.has(x)));
+    const union = new Set([...setA, ...setB]);
+    return intersection.size / union.size;
+  };
 
   // Handle clicking a word from the bank into the answer box
   const handleSelectWord = (word: string, index: number) => {
@@ -138,19 +159,30 @@ export const LessonModal: React.FC<LessonModalProps> = ({
       const recognition = new SpeechRecognitionAPI();
       recognition.lang = targetLang === "en" ? "en-US" : "fr-FR";
       recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
+      recognition.maxAlternatives = 3;
+      recognition.continuous = false;
 
       setIsSpeakingActive(true);
 
       recognition.onresult = (event: any) => {
-        let transcript = "";
+        // Pick the best-matching alternative among all recognition results
+        let bestTranscript = "";
+        let bestScore = -1;
+        const target = currentEx.correctAnswer || currentEx.sourceText;
         for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript + " ";
+          for (let j = 0; j < event.results[i].length; j++) {
+            const t = (event.results[i][j].transcript || "").trim();
+            const s = getSimilarityScore(t, target);
+            if (s > bestScore) {
+              bestScore = s;
+              bestTranscript = t;
+            }
+          }
         }
-        transcript = transcript.trim();
-        setRecognizedSpeech(transcript);
-        if (event.results[0]?.isFinal) {
-          setSelectedOption(transcript || currentEx.sourceText);
+        setRecognizedSpeech(bestTranscript);
+        if (event.results[0]?.isFinal && bestTranscript) {
+          setSelectedOption(bestTranscript);
+          setSpeechScore(Math.round(bestScore * 100));
         }
       };
 
@@ -177,12 +209,6 @@ export const LessonModal: React.FC<LessonModalProps> = ({
 
       recognition.onend = () => {
         setIsSpeakingActive(false);
-        setRecognizedSpeech((prev) => {
-          if (prev) {
-            setSelectedOption(prev);
-          }
-          return prev;
-        });
       };
 
       recognition.start();
@@ -210,7 +236,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({
     } else if (currentEx.type === "multiple_choice" || currentEx.type === "fill_blank") {
       userAnswer = selectedOption || "";
     } else if (currentEx.type === "speaking") {
-      userAnswer = selectedOption || currentEx.sourceText;
+      userAnswer = selectedOption || "";
     }
 
     // Compare case-insensitive & trim punctuation/spaces
@@ -223,9 +249,13 @@ export const LessonModal: React.FC<LessonModalProps> = ({
       .toLowerCase()
       .replace(/[.,?!]/g, "");
 
+    // Speaking: require ≥60% Jaccard word-overlap similarity (real pronunciation check)
+    const SPEAKING_PASS_THRESHOLD = 0.6;
     const isCorrect =
       cleanUser === cleanCorrect ||
-      (currentEx.type === "speaking" && Boolean(selectedOption));
+      (currentEx.type === "speaking" &&
+        userAnswer.length > 0 &&
+        getSimilarityScore(cleanUser, cleanCorrect) >= SPEAKING_PASS_THRESHOLD);
 
     if (isCorrect) {
       setStatus("correct");
@@ -326,7 +356,8 @@ export const LessonModal: React.FC<LessonModalProps> = ({
 
   const totalEx = lesson.exercises.length;
   const progressPercent = Math.round((currentIndex / totalEx) * 100);
-  const accuracyPercent = Math.round((correctCount / totalEx) * 100) || 100;
+  const accuracyPercent =
+    totalEx > 0 ? Math.round((correctCount / totalEx) * 100) : 100;
   const earnedXp = lesson.xpReward + (accuracyPercent === 100 ? 5 : 0);
 
   // ----------------------------------------------------------------------
@@ -659,8 +690,39 @@ export const LessonModal: React.FC<LessonModalProps> = ({
               {/* Display live speech transcript */}
               {recognizedSpeech && (
                 <div className="mt-2 px-4 py-2.5 bg-emerald-50 border-2 border-emerald-400 rounded-xl text-emerald-900 font-extrabold text-sm flex items-center gap-2 shadow-xs">
-                  <span className="text-emerald-600">🎙️</span>
+                  <span className="text-emerald-600">🎤️</span>
                   <span>« {recognizedSpeech} »</span>
+                </div>
+              )}
+
+              {/* Pronunciation similarity score badge */}
+              {speechScore !== null && (
+                <div
+                  className={`mt-1 px-4 py-2 rounded-xl font-extrabold text-sm flex items-center gap-2 border-2 ${
+                    speechScore >= 80
+                      ? "bg-emerald-50 border-emerald-400 text-emerald-800"
+                      : speechScore >= 60
+                      ? "bg-amber-50 border-amber-400 text-amber-800"
+                      : "bg-rose-50 border-rose-400 text-rose-800"
+                  }`}
+                >
+                  <span>
+                    {speechScore >= 80 ? "🎯" : speechScore >= 60 ? "⚠️" : "❌"}
+                  </span>
+                  <span>
+                    {speechScore}% —{" "}
+                    {speechScore >= 80
+                      ? isFrToEn
+                        ? "Excellent ! Cliquez VÉRIFIER"
+                        : "Excellent! Tap CHECK"
+                      : speechScore >= 60
+                      ? isFrToEn
+                        ? "Bien ! Cliquez VÉRIFIER ou réessayez pour mieux"
+                        : "Good! Tap CHECK or retry for better"
+                      : isFrToEn
+                      ? "Non reconnu — Réessayez !"
+                      : "Not recognized — Try again!"}
+                  </span>
                 </div>
               )}
 
@@ -671,17 +733,38 @@ export const LessonModal: React.FC<LessonModalProps> = ({
                 </div>
               )}
 
-              {/* Accessible fallback button if mic not available or fails */}
+              {/* Retry button: only before validation, when score < 80% */}
+              {status === "idle" &&
+                selectedOption &&
+                speechScore !== null &&
+                speechScore < 80 && (
+                  <button
+                    onClick={() => {
+                      playSound("pop");
+                      setSelectedOption(null);
+                      setSpeechScore(null);
+                      setRecognizedSpeech("");
+                      setSpeechError("");
+                    }}
+                    className="text-xs font-black text-amber-600 underline hover:text-amber-800 mt-1 cursor-pointer"
+                  >
+                    {isFrToEn
+                      ? "🔁 Réessayer la prononciation"
+                      : "🔁 Retry pronunciation"}
+                  </button>
+                )}
+
+              {/* Skip speaking: no penalty, not counted as correct or incorrect */}
               <button
                 onClick={() => {
                   playSound("pop");
-                  setSelectedOption(currentEx.sourceText);
+                  handleNextExercise();
                 }}
                 className="text-xs font-bold text-slate-400 underline hover:text-slate-600 mt-2 cursor-pointer"
               >
                 {isFrToEn
-                  ? "Pas de micro ou dans l'aperçu ? Valider directement"
-                  : "No microphone? Skip speaking"}
+                  ? "Pas de micro ? Passer cet exercice"
+                  : "No microphone? Skip this exercise"}
               </button>
             </div>
           </div>

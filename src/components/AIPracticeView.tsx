@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Sparkles,
   Wand2,
@@ -11,7 +11,9 @@ import {
   Briefcase,
   Users,
   Play,
-  HelpCircle
+  HelpCircle,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { LearningDirection, Lesson, RoleplayMessage } from "../types";
 import { speakText, playSound } from "../utils/audio";
@@ -56,6 +58,39 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
   ]);
   const [inputMessage, setInputMessage] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [isVoiceInput, setIsVoiceInput] = useState(false);
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Voice input handler for roleplay chat
+  const handleVoiceInput = () => {
+    const SpeechRecognitionAPI =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) return;
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = targetLang === "en" ? "en-US" : "fr-FR";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    setIsVoiceInput(true);
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0]?.[0]?.transcript || "";
+      setInputMessage(transcript);
+      setIsVoiceInput(false);
+    };
+
+    recognition.onerror = () => setIsVoiceInput(false);
+    recognition.onend = () => setIsVoiceInput(false);
+
+    recognition.start();
+  };
 
   // Handle generating a custom Duolingo lesson via Gemini
   const handleGenerateLesson = async (e: React.FormEvent) => {
@@ -444,6 +479,7 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
                 </span>
               </div>
             )}
+            <div ref={chatEndRef} />
           </div>
 
           {/* Input form */}
@@ -453,12 +489,34 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               placeholder={
-                isFrToEn
-                  ? "Écrivez votre réponse en anglais..."
-                  : "Type your answer in French..."
+                isVoiceInput
+                  ? isFrToEn
+                    ? "🎤️ Écoute en cours…"
+                    : "🎤️ Listening…"
+                  : isFrToEn
+                  ? "Écrivez ou parlez votre réponse…"
+                  : "Type or speak your answer…"
               }
               className="flex-1 px-4 py-3 rounded-2xl border-2 border-slate-300 focus:border-purple-500 focus:outline-none font-bold text-slate-800"
+              readOnly={isVoiceInput}
             />
+            <button
+              type="button"
+              onClick={handleVoiceInput}
+              disabled={isVoiceInput}
+              title={isFrToEn ? "Parler" : "Speak"}
+              className={`px-4 py-3 rounded-2xl font-black transition-all cursor-pointer flex items-center justify-center border-2 border-b-4 ${
+                isVoiceInput
+                  ? "bg-rose-100 border-rose-400 text-rose-700 animate-pulse"
+                  : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700"
+              }`}
+            >
+              {isVoiceInput ? (
+                <MicOff className="w-5 h-5" />
+              ) : (
+                <Mic className="w-5 h-5" />
+              )}
+            </button>
             <button
               type="submit"
               disabled={!inputMessage.trim() || isChatLoading}
