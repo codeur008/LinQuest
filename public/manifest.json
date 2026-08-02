@@ -1,0 +1,18 @@
+{
+  "short_name": "LingoQuest",
+  "name": "LingoQuest - Apprendre les langues",
+  "description": "L'application ludique pour apprendre l'Anglais, le Français et l'Espagnol gratuitement.",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#10B981",
+  "theme_color": "#10B981",
+  "display": "standalone",
+  "orientation": "portrait"
+}

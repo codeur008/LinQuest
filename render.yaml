@@ -1,0 +1,17 @@
+# Render Blueprint Specification for LingoQuest
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: lingoquest
+    env: node
+    region: frankfurt # Optionnel : region européenne par défaut (ou oregon, ohio, singapore)
+    plan: free # Compatible avec l'offre gratuite de Render
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false # Render demandera d'entrer la clé API Gemini lors du premier déploiement
+    healthCheckPath: /api/health

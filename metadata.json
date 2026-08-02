@@ -1,0 +1,6 @@
+{
+  "name": "LingoQuest - Apprendre l'Anglais et le Français",
+  "description": "Application d'apprentissage d'anglais et de français de style Duolingo avec parcours de leçons interactif, quiz ludiques, prononciation audio, séries de jours, ligues et Tuteur IA.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
