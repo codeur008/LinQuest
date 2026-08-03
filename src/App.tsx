@@ -457,8 +457,8 @@ export default function App() {
       {/* 5. Duolingo Onboarding & Authentication Flow */}
       {showOnboarding && (
         <OnboardingFlow
-          onComplete={handleProfileAuth}
-          onLoginExisting={handleProfileAuth}
+          onComplete={handleCompleteOnboarding}
+          onLoginExisting={handleLoginExisting}
         />
       )}
 

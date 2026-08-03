@@ -1,10 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { OnboardingFlow } from '../components/OnboardingFlow';
+import { loginUser } from '../utils/api';
 
 // Mocks
-vi.mock('../../utils/audio', () => ({
+vi.mock('../utils/audio', () => ({
   playSound: vi.fn(),
+}));
+
+vi.mock('../utils/api', () => ({
+  loginUser: vi.fn(),
+  registerUser: vi.fn(),
 }));
 
 describe('OnboardingFlow', () => {
@@ -21,6 +27,11 @@ describe('OnboardingFlow', () => {
 
   it('handles valid admin login correctly', async () => {
     const handleLogin = vi.fn();
+    (loginUser as any).mockResolvedValueOnce({
+      profile: { isAdmin: true, email: 'admin' },
+      token: 'fake-token'
+    });
+    
     render(<OnboardingFlow onComplete={vi.fn()} onLoginExisting={handleLogin} />);
     
     // Go to login
@@ -37,15 +48,17 @@ describe('OnboardingFlow', () => {
     fireEvent.click(screen.getByText(/Se connecter/i));
     
     await waitFor(() => {
-      expect(handleLogin).toHaveBeenCalledWith(expect.objectContaining({
-        isAdmin: true,
-        email: 'admin',
-      }));
+      expect(handleLogin).toHaveBeenCalledWith(
+        expect.objectContaining({ isAdmin: true, email: 'admin' }),
+        'fake-token'
+      );
     });
   });
   
   it('rejects invalid admin login', async () => {
     const handleLogin = vi.fn();
+    (loginUser as any).mockRejectedValueOnce(new Error('Identifiants incorrects.'));
+    
     render(<OnboardingFlow onComplete={vi.fn()} onLoginExisting={handleLogin} />);
     
     fireEvent.click(screen.getByText("J'AI DÉJÀ UN COMPTE"));
@@ -59,7 +72,7 @@ describe('OnboardingFlow', () => {
     fireEvent.click(screen.getByText(/Se connecter/i));
     
     await waitFor(() => {
-      expect(screen.getByText(/Identifiants admin incorrects/i)).toBeInTheDocument();
+      expect(screen.getByText(/Identifiants incorrects/i)).toBeInTheDocument();
       expect(handleLogin).not.toHaveBeenCalled();
     });
   });
