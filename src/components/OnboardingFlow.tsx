@@ -185,21 +185,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     }
   };
 
-  // Demo account quick login
-  const handleQuickLogin = async (preset: {
-    email: string;
-  }) => {
-    try {
-      // In demo mode, assume password is 'password123' or 'lingoquest' for simplicity.
-      // If demo accounts aren't registered yet, this might fail, so we catch it.
-      const response = await loginUser({ email: preset.email, password: 'password123' });
-      playSound("complete");
-      onLoginExisting(response.profile, response.token);
-    } catch (err) {
-      alert("Erreur de connexion rapide. Ce compte démo n'est peut-être pas encore créé (il faut s'inscrire).");
-    }
-  };
-
   const handleCustomLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail.trim() || !loginPassword) {
@@ -800,102 +785,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
               SE CONNECTER
             </button>
           </form>
-
-          {/* QUICK DEMO ACCOUNTS */}
-          <div className="mt-6 pt-5 border-t border-slate-100 space-y-3">
-            <span className="block text-center text-xs font-black uppercase tracking-wider text-slate-400">
-              Ou connexion rapide (Comptes de démonstration) :
-            </span>
-
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickLogin({
-                    name: "Sophie L.",
-                    email: "sophie.l@lingoquest.fr",
-                    lang: "en",
-                    avatar: "🦉",
-                    avatarLabel: "Hibou Lingo",
-                  })
-                }
-                className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-emerald-50 border-2 border-slate-200 hover:border-emerald-400 text-left flex items-center justify-between transition-all cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">🦉</span>
-                  <div>
-                    <div className="font-extrabold text-slate-800 text-sm">
-                      Sophie L. • Anglais 🇬🇧
-                    </div>
-                    <div className="text-xs text-slate-500 font-bold">
-                      Ligue Or • 1420 XP • Objectif 10 min
-                    </div>
-                  </div>
-                </div>
-                <span className="text-xs font-black text-emerald-600 bg-emerald-100 px-2.5 py-1 rounded-full">
-                  Tester
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickLogin({
-                    name: "Alex W.",
-                    email: "alex.w@lingoquest.en",
-                    lang: "fr",
-                    avatar: "🦊",
-                    avatarLabel: "Renard Malin",
-                  })
-                }
-                className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-blue-50 border-2 border-slate-200 hover:border-blue-400 text-left flex items-center justify-between transition-all cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">🦊</span>
-                  <div>
-                    <div className="font-extrabold text-slate-800 text-sm">
-                      Alex W. • Français 🇫🇷
-                    </div>
-                    <div className="text-xs text-slate-500 font-bold">
-                      English Speaker • 1100 XP • Objectif 15 min
-                    </div>
-                  </div>
-                </div>
-                <span className="text-xs font-black text-blue-600 bg-blue-100 px-2.5 py-1 rounded-full">
-                  Tester
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickLogin({
-                    name: "Lucas M.",
-                    email: "lucas.m@lingoquest.fr",
-                    lang: "es",
-                    avatar: "🦁",
-                    avatarLabel: "Lion Vaillant",
-                  })
-                }
-                className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-amber-50 border-2 border-slate-200 hover:border-amber-400 text-left flex items-center justify-between transition-all cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">🦁</span>
-                  <div>
-                    <div className="font-extrabold text-slate-800 text-sm">
-                      Lucas M. • Espagnol 🇪🇸
-                    </div>
-                    <div className="text-xs text-slate-500 font-bold">
-                      Débutant • 850 XP • Objectif 5 min
-                    </div>
-                  </div>
-                </div>
-                <span className="text-xs font-black text-amber-600 bg-amber-100 px-2.5 py-1 rounded-full">
-                  Tester
-                </span>
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
