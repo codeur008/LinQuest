@@ -16,6 +16,7 @@ export interface UserProfile {
   dailyGoalMinutes: number;
   joinedDate: string;
   isGuest?: boolean;
+  isAdmin?: boolean;
 }
 
 export type LearningDirection = "fr-to-en" | "en-to-fr";

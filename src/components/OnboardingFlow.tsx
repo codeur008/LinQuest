@@ -21,6 +21,7 @@ import {
 import { UserProfile, TargetLanguage, LearningDirection } from "../types";
 import { playSound } from "../utils/audio";
 import { downloadApk } from "../utils/apk";
+import { hashPassword, ADMIN_PASSWORD_HASH } from "../utils/security";
 
 interface OnboardingFlowProps {
   onComplete: (profile: UserProfile) => void;
@@ -207,11 +208,35 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     onLoginExisting(existingProfile);
   };
 
-  const handleCustomLogin = (e: React.FormEvent) => {
+  const handleCustomLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail.trim()) {
       setLoginError("Veuillez entrer votre adresse e-mail ou pseudo.");
       return;
+    }
+
+    if (loginEmail.trim() === "admin") {
+      const inputHash = await hashPassword(loginPassword);
+      if (inputHash === ADMIN_PASSWORD_HASH) {
+        playSound("complete");
+        onLoginExisting({
+          id: "admin-user",
+          name: "Administrateur",
+          email: "admin",
+          avatar: "🛠️",
+          avatarLabel: "Admin",
+          targetLanguage: "en",
+          learningReason: "Général",
+          dailyGoalMinutes: 10,
+          joinedDate: "aujourd'hui",
+          isAdmin: true,
+        });
+        return;
+      } else {
+        playSound("pop");
+        setLoginError("Identifiants admin incorrects.");
+        return;
+      }
     }
 
     playSound("complete");

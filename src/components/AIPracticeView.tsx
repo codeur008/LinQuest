@@ -382,10 +382,10 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
 
       {/* TAB 2: ROLEPLAY CHAT */}
       {activeTab === "roleplay" && (
-        <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 sm:p-8 space-y-6 shadow-sm">
+        <div className="bg-white rounded-3xl border-2 border-slate-200 p-4 sm:p-8 flex flex-col h-[75vh] sm:h-auto shadow-sm">
           {/* Scenario Picker */}
-          <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-200">
-            <span className="text-xs font-bold uppercase text-slate-400 mr-2">
+          <div className="flex flex-wrap items-center gap-2 pb-3 mb-3 border-b border-slate-200 shrink-0">
+            <span className="text-xs font-bold uppercase text-slate-400 mr-2 w-full sm:w-auto">
               {isFrToEn ? "Scénario :" : "Scenario:"}
             </span>
             {[
@@ -413,35 +413,35 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
           </div>
 
           {/* Chat Messages */}
-          <div className="space-y-4 max-h-[420px] overflow-y-auto p-2">
+          <div className="space-y-4 flex-1 overflow-y-auto p-2 min-h-0 mb-3">
             {messages.map((m) => {
               const isModel = m.sender === "model";
               return (
                 <div
                   key={m.id}
-                  className={`flex items-start gap-3 ${
+                  className={`flex items-start gap-2 sm:gap-3 ${
                     isModel ? "justify-start" : "justify-end"
                   }`}
                 >
                   {isModel && (
-                    <div className="w-10 h-10 rounded-full bg-purple-100 border border-purple-300 flex items-center justify-center text-xl shrink-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-purple-100 border border-purple-300 flex items-center justify-center text-lg sm:text-xl shrink-0">
                       🦉
                     </div>
                   )}
 
                   <div
-                    className={`max-w-md p-4 rounded-2xl space-y-2 ${
+                    className={`max-w-[85%] sm:max-w-md p-3 sm:p-4 rounded-2xl space-y-2 ${
                       isModel
                         ? "bg-purple-50 border border-purple-200 text-slate-800"
                         : "bg-emerald-500 text-white rounded-br-none"
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center justify-between gap-2 sm:gap-3">
                       <p className="font-bold text-sm sm:text-base">{m.text}</p>
                       {isModel && (
                         <button
                           onClick={() => speakText(m.text, targetLang)}
-                          className="p-1.5 bg-purple-200 hover:bg-purple-300 text-purple-800 rounded-lg shrink-0 cursor-pointer"
+                          className="p-1 sm:p-1.5 bg-purple-200 hover:bg-purple-300 text-purple-800 rounded-lg shrink-0 cursor-pointer"
                           title="Écouter la prononciation"
                         >
                           <Volume2 className="w-4 h-4" />
@@ -456,11 +456,11 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
                     )}
 
                     {isModel && m.suggestion && (
-                      <div className="bg-white/80 p-2 rounded-xl text-xs font-bold text-purple-700 mt-2">
+                      <div className="bg-white/80 p-2 rounded-xl text-[11px] sm:text-xs font-bold text-purple-700 mt-2">
                         💡 Suggestion : « {m.suggestion} »
                         <button
                           onClick={() => setInputMessage(m.suggestion!)}
-                          className="ml-2 text-purple-900 underline hover:no-underline cursor-pointer"
+                          className="ml-2 text-purple-900 underline hover:no-underline cursor-pointer block sm:inline mt-1 sm:mt-0"
                         >
                           {isFrToEn ? "Utiliser" : "Use this"}
                         </button>
@@ -483,7 +483,7 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
           </div>
 
           {/* Input form */}
-          <form onSubmit={handleSendMessage} className="flex gap-2">
+          <form onSubmit={handleSendMessage} className="flex gap-2 shrink-0">
             <input
               type="text"
               value={inputMessage}
@@ -491,13 +491,13 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
               placeholder={
                 isVoiceInput
                   ? isFrToEn
-                    ? "🎤️ Écoute en cours…"
-                    : "🎤️ Listening…"
+                    ? "🎤️ Écoute..."
+                    : "🎤️ Listening..."
                   : isFrToEn
-                  ? "Écrivez ou parlez votre réponse…"
-                  : "Type or speak your answer…"
+                  ? "Votre réponse..."
+                  : "Your answer..."
               }
-              className="flex-1 px-4 py-3 rounded-2xl border-2 border-slate-300 focus:border-purple-500 focus:outline-none font-bold text-slate-800"
+              className="flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-2xl border-2 border-slate-300 focus:border-purple-500 focus:outline-none font-bold text-slate-800 text-sm sm:text-base min-w-0"
               readOnly={isVoiceInput}
             />
             <button
@@ -505,7 +505,7 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
               onClick={handleVoiceInput}
               disabled={isVoiceInput}
               title={isFrToEn ? "Parler" : "Speak"}
-              className={`px-4 py-3 rounded-2xl font-black transition-all cursor-pointer flex items-center justify-center border-2 border-b-4 ${
+              className={`px-3 sm:px-4 py-2 sm:py-3 rounded-2xl font-black transition-all cursor-pointer flex items-center justify-center border-2 border-b-4 shrink-0 ${
                 isVoiceInput
                   ? "bg-rose-100 border-rose-400 text-rose-700 animate-pulse"
                   : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700"
@@ -520,7 +520,7 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
             <button
               type="submit"
               disabled={!inputMessage.trim() || isChatLoading}
-              className="px-6 py-3 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-black transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center"
+              className="px-4 sm:px-6 py-2 sm:py-3 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-black transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center shrink-0"
             >
               <Send className="w-5 h-5" />
             </button>

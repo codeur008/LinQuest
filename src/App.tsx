@@ -22,6 +22,7 @@ import { AIPracticeView } from "./components/AIPracticeView";
 import { LeagueView } from "./components/LeagueView";
 import { QuestsView } from "./components/QuestsView";
 import { ShopView } from "./components/ShopView";
+import { AdminView } from "./components/AdminView";
 import {
   UnitGuideModal,
   HeartsModal,
@@ -31,6 +32,7 @@ import { OnboardingFlow } from "./components/OnboardingFlow";
 import { ProfileModal } from "./components/ProfileModal";
 import { InstallAppModal } from "./components/InstallAppModal";
 import { playSound } from "./utils/audio";
+import { encryptData, decryptData } from "./utils/security";
 
 const DEFAULT_STATS: UserStats = {
   xp: 350,
@@ -56,18 +58,15 @@ export default function App() {
   const [stats, setStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem("lingoquest_stats");
     if (saved) {
-      try {
-        return { ...DEFAULT_STATS, ...JSON.parse(saved) };
-      } catch (e) {
-        return DEFAULT_STATS;
-      }
+      const parsed = decryptData(saved);
+      if (parsed) return parsed;
     }
     return DEFAULT_STATS;
   });
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
-    "path" | "league" | "quests" | "ai" | "shop"
+    "path" | "league" | "quests" | "ai" | "shop" | "admin"
   >("path");
 
   // League Learners & Quests
@@ -118,24 +117,34 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem("lingoquest_profile");
     if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return null;
-      }
+      const parsed = decryptData(saved);
+      if (parsed) return parsed;
     }
     return null;
   });
 
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
-    return !localStorage.getItem("lingoquest_profile");
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    // Show onboarding if no valid decrypted profile exists
+    const saved = localStorage.getItem("lingoquest_profile");
+    if (saved) {
+      const parsed = decryptData(saved);
+      if (parsed) return false;
+    }
+    return true;
   });
 
   // Handle profile creation or login
   const handleProfileAuth = (profile: UserProfile) => {
     setUserProfile(profile);
     setShowOnboarding(false);
-    localStorage.setItem("lingoquest_profile", JSON.stringify(profile));
+    localStorage.setItem("lingoquest_profile", encryptData(profile));
+    
+    if (profile.isAdmin) {
+      setActiveTab("admin");
+    } else {
+      setActiveTab("path");
+    }
+
     // Set appropriate direction based on selected language
     if (profile.targetLanguage === "fr") {
       setDirection("en-to-fr");
@@ -147,6 +156,7 @@ export default function App() {
   const handleLogout = () => {
     setUserProfile(null);
     setShowOnboarding(true);
+    setActiveTab("path");
     localStorage.removeItem("lingoquest_profile");
   };
 
@@ -168,7 +178,7 @@ export default function App() {
 
   // Sync stats to storage & update user in leaderboard
   useEffect(() => {
-    localStorage.setItem("lingoquest_stats", JSON.stringify(stats));
+    localStorage.setItem("lingoquest_stats", encryptData(stats));
 
     setLearners((prev) =>
       prev.map((l) =>
@@ -351,6 +361,20 @@ export default function App() {
             onEquipCostume={handleEquipCostume}
           />
         )}
+
+        {activeTab === "admin" && (
+          userProfile?.isAdmin ? (
+            <AdminView
+              stats={stats}
+              profile={userProfile}
+              onUpdateStats={setStats}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-64 text-slate-500 font-bold">
+              Accès refusé. Réservé aux administrateurs.
+            </div>
+          )
+        )}
       </main>
 
       {/* 1. Active Lesson Modal */}
@@ -410,6 +434,10 @@ export default function App() {
         onClose={() => setShowProfileModal(false)}
         onLogout={handleLogout}
         onChangeDirection={(dir) => setDirection(dir)}
+        onGoToAdmin={() => {
+          setShowProfileModal(false);
+          setActiveTab("admin");
+        }}
       />
 
       {/* 7. Install PWA on Phone Modal */}

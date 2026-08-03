@@ -12,6 +12,7 @@ import {
   Gem,
   Heart,
   Sparkles,
+  Settings,
 } from "lucide-react";
 import { UserProfile, UserStats, LearningDirection } from "../types";
 import { playSound } from "../utils/audio";
@@ -24,6 +25,7 @@ interface ProfileModalProps {
   onClose: () => void;
   onLogout: () => void;
   onChangeDirection: (dir: LearningDirection) => void;
+  onGoToAdmin: () => void;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -34,6 +36,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onClose,
   onLogout,
   onChangeDirection,
+  onGoToAdmin,
 }) => {
   if (!isOpen) return null;
 
@@ -175,6 +178,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
         {/* Action Buttons */}
         <div className="space-y-2 pt-2">
+          {displayProfile.isAdmin && (
+            <button
+              onClick={() => {
+                playSound("pop");
+                onGoToAdmin();
+              }}
+              className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-black text-sm uppercase tracking-wider rounded-2xl border-2 border-slate-700 border-b-4 hover:border-slate-800 transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Panneau d'Administration</span>
+            </button>
+          )}
+
           <button
             onClick={() => {
               playSound("pop");
