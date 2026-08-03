@@ -3,13 +3,39 @@ import path from "path";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
+import cors from "cors";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import db from "./db";
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
+app.use(cors());
 app.use(express.json());
+
+const JWT_SECRET = process.env.JWT_SECRET || "lingoquest-super-secret-key-2026";
+
+// Middleware to verify JWT
+const authenticateToken = (req: any, res: any, next: any) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (token == null) return res.sendStatus(401);
+
+  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
+const requireAdmin = (req: any, res: any, next: any) => {
+  if (!req.user || !req.user.isAdmin) return res.status(403).json({ error: "Forbidden: Admin only" });
+  next();
+};
 
 // Helper for Gemini client (lazy initialization)
 function getGenAIClient() {
@@ -258,6 +284,163 @@ Always reply in strictly formatted JSON:
       translation: "Bravo ! essayons une autre phrase ensemble.",
       suggestion: req.body.learningLanguage === "en" ? "How are you today?" : "Comment allez-vous aujourd'hui ?",
     });
+  }
+});
+
+// Authentication Routes
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { name, email, password, avatar, avatarLabel, targetLanguage, learningReason, dailyGoalMinutes } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const existingUser = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
+    if (existingUser) {
+      return res.status(400).json({ error: "Email already in use" });
+    }
+
+    const id = "usr_" + Math.random().toString(36).substr(2, 9);
+    const passwordHash = await bcrypt.hash(password, 10);
+    const isAdmin = email.toLowerCase() === "admin" ? 1 : 0;
+    const joinedDate = new Date().toISOString();
+
+    const insertUser = db.prepare(`
+      INSERT INTO users (id, name, email, passwordHash, avatar, avatarLabel, targetLanguage, learningReason, dailyGoalMinutes, joinedDate, isAdmin)
+      VALUES (@id, @name, @email, @passwordHash, @avatar, @avatarLabel, @targetLanguage, @learningReason, @dailyGoalMinutes, @joinedDate, @isAdmin)
+    `);
+
+    insertUser.run({
+      id, name, email, passwordHash,
+      avatar: avatar || '👤',
+      avatarLabel: avatarLabel || 'Explorer',
+      targetLanguage: targetLanguage || 'en',
+      learningReason: learningReason || '',
+      dailyGoalMinutes: dailyGoalMinutes || 10,
+      joinedDate,
+      isAdmin
+    });
+    
+    // Create initial stats
+    db.prepare(`INSERT INTO stats (userId) VALUES (?)`).run(id);
+
+    const token = jwt.sign({ id, email, isAdmin: isAdmin === 1 }, JWT_SECRET, { expiresIn: '7d' });
+    
+    const profile = { id, name, email, avatar, avatarLabel, targetLanguage, learningReason, dailyGoalMinutes, joinedDate, isAdmin: isAdmin === 1 };
+    res.json({ token, profile, stats: { xp: 0, streak: 0, gems: 0, completedNodes: [] } });
+  } catch (err) {
+    console.error("Register error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = db.prepare("SELECT u.*, s.xp, s.streak, s.gems, s.completedNodes FROM users u LEFT JOIN stats s ON u.id = s.userId WHERE u.email = ?").get(email) as any;
+    
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
+    if (user.status === 'banned') return res.status(403).json({ error: "Account banned" });
+
+    const validPassword = await bcrypt.compare(password, user.passwordHash || "");
+    if (!validPassword) return res.status(401).json({ error: "Invalid credentials" });
+
+    const token = jwt.sign({ id: user.id, email: user.email, isAdmin: user.isAdmin === 1 }, JWT_SECRET, { expiresIn: '7d' });
+    
+    const profile = { 
+      id: user.id, name: user.name, email: user.email, avatar: user.avatar, avatarLabel: user.avatarLabel, 
+      targetLanguage: user.targetLanguage, learningReason: user.learningReason, dailyGoalMinutes: user.dailyGoalMinutes, 
+      joinedDate: user.joinedDate, isAdmin: user.isAdmin === 1 
+    };
+    
+    const stats = {
+      xp: user.xp || 0, streak: user.streak || 0, gems: user.gems || 0,
+      completedNodes: user.completedNodes ? JSON.parse(user.completedNodes) : []
+    };
+
+    res.json({ token, profile, stats });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Protected Profile Sync
+app.post("/api/users/sync", authenticateToken, (req: any, res: any) => {
+  try {
+    const { profile, stats } = req.body;
+    if (req.user.id !== profile.id) return res.status(403).json({ error: "Forbidden" });
+
+    // Update stats only (Profile is usually updated via other endpoints in a real app)
+    if (stats) {
+      const insertStats = db.prepare(`
+        INSERT OR REPLACE INTO stats (userId, xp, streak, gems, completedNodes)
+        VALUES (@userId, @xp, @streak, @gems, @completedNodes)
+      `);
+      insertStats.run({
+        userId: profile.id,
+        xp: stats.xp || 0,
+        streak: stats.streak || 0,
+        gems: stats.gems || 0,
+        completedNodes: JSON.stringify(stats.completedNodes || [])
+      });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error syncing user:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Admin Routes Protected
+app.get("/api/admin/users", authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const users = db.prepare(`
+      SELECT u.*, s.xp, s.streak, s.gems, s.completedNodes
+      FROM users u
+      LEFT JOIN stats s ON u.id = s.userId
+    `).all();
+    
+    // Format JSON
+    const formatted = users.map((u: any) => ({
+      ...u,
+      isAdmin: u.isAdmin === 1,
+      completedNodes: u.completedNodes ? JSON.parse(u.completedNodes) : []
+    }));
+    
+    res.json(formatted);
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/api/admin/users/:id/toggle-ban", authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = db.prepare("SELECT status FROM users WHERE id = ?").get(id) as any;
+    if (!user) return res.status(404).json({ error: "User not found" });
+    
+    const newStatus = user.status === 'active' ? 'banned' : 'active';
+    db.prepare("UPDATE users SET status = ? WHERE id = ?").run(newStatus, id);
+    
+    res.json({ success: true, newStatus });
+  } catch (err) {
+    console.error("Error toggling ban:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const { id } = req.params;
+    db.prepare("DELETE FROM users WHERE id = ?").run(id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting user:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

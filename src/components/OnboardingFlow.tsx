@@ -21,11 +21,11 @@ import {
 import { UserProfile, TargetLanguage, LearningDirection } from "../types";
 import { playSound } from "../utils/audio";
 import { downloadApk } from "../utils/apk";
-import { hashPassword, ADMIN_PASSWORD_HASH } from "../utils/security";
+import { registerUser, loginUser } from "../utils/api";
 
 interface OnboardingFlowProps {
-  onComplete: (profile: UserProfile) => void;
-  onLoginExisting: (profile: UserProfile) => void;
+  onComplete: (profile: UserProfile, token: string) => void;
+  onLoginExisting: (profile: UserProfile, token: string) => void;
 }
 
 
@@ -148,7 +148,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     }
   };
 
-  const handleFinishSignup = (e: React.FormEvent) => {
+  const handleFinishSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setFormError("Veuillez entrer un pseudo ou un prénom.");
@@ -166,97 +166,55 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     setFormError("");
     playSound("complete");
 
-    const newProfile: UserProfile = {
-      id: "user-" + Date.now(),
-      name: name.trim(),
-      email: email.trim(),
-      avatar: selectedAvatar.emoji,
-      avatarLabel: selectedAvatar.name,
-      targetLanguage: selectedLang,
-      learningReason: REASON_OPTIONS.find((r) => r.id === selectedReason)?.title || "Général",
-      dailyGoalMinutes: dailyGoal,
-      joinedDate: new Date().toLocaleDateString("fr-FR", {
-        month: "long",
-        year: "numeric",
-      }),
-    };
-
-    setPendingProfile(newProfile);
-    setStep(5);
+    try {
+      const response = await registerUser({
+        name: name.trim(),
+        email: email.trim(),
+        password: password,
+        avatar: selectedAvatar.emoji,
+        avatarLabel: selectedAvatar.name,
+        targetLanguage: selectedLang,
+        learningReason: REASON_OPTIONS.find((r) => r.id === selectedReason)?.title || "Général",
+        dailyGoalMinutes: dailyGoal,
+      });
+      
+      setPendingProfile(response.profile);
+      setStep(5);
+    } catch (err: any) {
+      setFormError(err.message || "Erreur lors de l'inscription.");
+    }
   };
 
   // Demo account quick login
-  const handleQuickLogin = (preset: {
-    name: string;
+  const handleQuickLogin = async (preset: {
     email: string;
-    lang: TargetLanguage;
-    avatar: string;
-    avatarLabel: string;
   }) => {
-    playSound("complete");
-    const existingProfile: UserProfile = {
-      id: "user-demo-" + preset.lang,
-      name: preset.name,
-      email: preset.email,
-      avatar: preset.avatar,
-      avatarLabel: preset.avatarLabel,
-      targetLanguage: preset.lang,
-      learningReason: "Culture & Divertissement",
-      dailyGoalMinutes: 10,
-      joinedDate: "mars 2026",
-    };
-    onLoginExisting(existingProfile);
+    try {
+      // In demo mode, assume password is 'password123' or 'lingoquest' for simplicity.
+      // If demo accounts aren't registered yet, this might fail, so we catch it.
+      const response = await loginUser({ email: preset.email, password: 'password123' });
+      playSound("complete");
+      onLoginExisting(response.profile, response.token);
+    } catch (err) {
+      alert("Erreur de connexion rapide. Ce compte démo n'est peut-être pas encore créé (il faut s'inscrire).");
+    }
   };
 
   const handleCustomLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginEmail.trim()) {
-      setLoginError("Veuillez entrer votre adresse e-mail ou pseudo.");
+    if (!loginEmail.trim() || !loginPassword) {
+      setLoginError("Veuillez entrer votre adresse e-mail et votre mot de passe.");
       return;
     }
 
-    if (loginEmail.trim() === "admin") {
-      const inputHash = await hashPassword(loginPassword);
-      if (inputHash === ADMIN_PASSWORD_HASH) {
-        playSound("complete");
-        onLoginExisting({
-          id: "admin-user",
-          name: "Administrateur",
-          email: "admin",
-          avatar: "🛠️",
-          avatarLabel: "Admin",
-          targetLanguage: "en",
-          learningReason: "Général",
-          dailyGoalMinutes: 10,
-          joinedDate: "aujourd'hui",
-          isAdmin: true,
-        });
-        return;
-      } else {
-        playSound("pop");
-        setLoginError("Identifiants admin incorrects.");
-        return;
-      }
+    try {
+      const response = await loginUser({ email: loginEmail.trim(), password: loginPassword });
+      playSound("complete");
+      onLoginExisting(response.profile, response.token);
+    } catch (err: any) {
+      playSound("pop");
+      setLoginError(err.message || "Identifiants incorrects.");
     }
-
-    playSound("complete");
-    const nameFromEmail = loginEmail.split("@")[0] || "Apprenant";
-    const formattedName =
-      nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
-
-    const profile: UserProfile = {
-      id: "user-existing-" + Date.now(),
-      name: formattedName,
-      email: loginEmail.trim(),
-      avatar: "🦉",
-      avatarLabel: "Hibou Lingo",
-      targetLanguage: "en",
-      learningReason: "Général",
-      dailyGoalMinutes: 10,
-      joinedDate: "janvier 2026",
-    };
-
-    onLoginExisting(profile);
   };
 
   return (

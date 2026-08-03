@@ -33,6 +33,7 @@ import { ProfileModal } from "./components/ProfileModal";
 import { InstallAppModal } from "./components/InstallAppModal";
 import { playSound } from "./utils/audio";
 import { encryptData, decryptData } from "./utils/security";
+import { syncUserProfile } from "./utils/api";
 
 const DEFAULT_STATS: UserStats = {
   xp: 350,
@@ -63,6 +64,20 @@ export default function App() {
     }
     return DEFAULT_STATS;
   });
+
+  const saveStats = (statsOrUpdater: UserStats | ((prev: UserStats) => UserStats)) => {
+    const newStats = typeof statsOrUpdater === "function" ? statsOrUpdater(stats) : statsOrUpdater;
+    setStats(newStats);
+    
+    // Save locally
+    const statsStr = encryptData(newStats);
+    localStorage.setItem("lingoquest_stats", statsStr);
+    
+    // Sync to backend (if profile exists)
+    if (userProfile) {
+      syncUserProfile(userProfile, newStats);
+    }
+  };
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
@@ -134,19 +149,39 @@ export default function App() {
   });
 
   // Handle profile creation or login
-  const handleProfileAuth = (profile: UserProfile) => {
-    setUserProfile(profile);
+  const handleCompleteOnboarding = (newProfile: UserProfile, token: string) => {
+    setUserProfile(newProfile);
     setShowOnboarding(false);
-    localStorage.setItem("lingoquest_profile", encryptData(profile));
+    localStorage.setItem("lingoquest_profile", encryptData(newProfile));
     
-    if (profile.isAdmin) {
+    // Sync initially with stats
+    syncUserProfile(newProfile, stats);
+    
+    if (newProfile.isAdmin) {
       setActiveTab("admin");
     } else {
       setActiveTab("path");
     }
 
-    // Set appropriate direction based on selected language
-    if (profile.targetLanguage === "fr") {
+    if (newProfile.targetLanguage === "fr") {
+      setDirection("en-to-fr");
+    } else {
+      setDirection("fr-to-en");
+    }
+  };
+
+  const handleLoginExisting = (existingProfile: UserProfile, token: string) => {
+    setUserProfile(existingProfile);
+    setShowOnboarding(false);
+    localStorage.setItem("lingoquest_profile", encryptData(existingProfile));
+    
+    if (existingProfile.isAdmin) {
+      setActiveTab("admin");
+    } else {
+      setActiveTab("path");
+    }
+
+    if (existingProfile.targetLanguage === "fr") {
       setDirection("en-to-fr");
     } else {
       setDirection("fr-to-en");
@@ -154,10 +189,12 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    import("./utils/api").then((api) => api.removeToken());
+    localStorage.removeItem("lingoquest_profile");
+    localStorage.removeItem("lingoquest_stats");
     setUserProfile(null);
     setShowOnboarding(true);
     setActiveTab("path");
-    localStorage.removeItem("lingoquest_profile");
   };
 
   // Lock direction to user profile's target language

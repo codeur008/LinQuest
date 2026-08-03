@@ -38,6 +38,11 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
   const [difficulty, setDifficulty] = useState<"débutant" | "intermédiaire" | "avancé">("débutant");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [loadingText, setLoadingText] = useState("");
+
+  const LOADING_PHRASES = isFrToEn 
+    ? ["Lingo prépare vos exercices...", "Recherche du vocabulaire...", "Création des dialogues...", "Presque prêt..."]
+    : ["Lingo is preparing your exercises...", "Finding vocabulary...", "Creating dialogues...", "Almost ready..."];
 
   // Roleplay Chat State
   const [scenario, setScenario] = useState("Au café parisien");
@@ -92,13 +97,21 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
     recognition.start();
   };
 
-  // Handle generating a custom Duolingo lesson via Gemini
   const handleGenerateLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!topic.trim()) return;
     playSound("pop");
     setIsGenerating(true);
     setGenerateError(null);
+    setLoadingText(LOADING_PHRASES[0]);
+
+    let loadingInterval = setInterval(() => {
+      setLoadingText(prev => {
+        const currentIndex = LOADING_PHRASES.indexOf(prev);
+        const nextIndex = (currentIndex + 1) % LOADING_PHRASES.length;
+        return LOADING_PHRASES[nextIndex];
+      });
+    }, 2000);
 
     try {
       const res = await fetch("/api/ai/generate-lesson", {
@@ -140,6 +153,7 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
           : "Connection error. Please try again!"
       );
     } finally {
+      clearInterval(loadingInterval);
       setIsGenerating(false);
     }
   };
@@ -360,9 +374,7 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span>
-                    {isFrToEn
-                      ? "Génération en cours..."
-                      : "Generating lesson..."}
+                    {loadingText}
                   </span>
                 </>
               ) : (
@@ -382,7 +394,7 @@ export const AIPracticeView: React.FC<AIPracticeViewProps> = ({
 
       {/* TAB 2: ROLEPLAY CHAT */}
       {activeTab === "roleplay" && (
-        <div className="bg-white rounded-3xl border-2 border-slate-200 p-4 sm:p-8 flex flex-col h-[75vh] sm:h-auto shadow-sm">
+        <div className="bg-white rounded-3xl border-2 border-slate-200 p-4 sm:p-8 flex flex-col h-[calc(100dvh-220px)] sm:h-[600px] shadow-sm">
           {/* Scenario Picker */}
           <div className="flex flex-wrap items-center gap-2 pb-3 mb-3 border-b border-slate-200 shrink-0">
             <span className="text-xs font-bold uppercase text-slate-400 mr-2 w-full sm:w-auto">
